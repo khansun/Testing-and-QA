@@ -8,7 +8,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.action_chains import ActionChains
 
-def _login(email, password):
+def _login(email, password, page_url):
     option = Options()
     option.add_argument("--disable-infobars")
     option.add_argument("start-maximized")
@@ -25,24 +25,23 @@ def _login(email, password):
     #target the login button and click it
     button = WebDriverWait(browser, 2).until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button[type='submit']"))).click()
     time.sleep(5)
+    browser.get(page_url)
+    time.sleep(5)
     return browser
 
 
-def _extract_comments(bs_data, export_html=False):
-    if(export_html):
-        with open('./bs.html',"w", encoding="utf-8") as file:
-            file.write(str(bs_data.prettify()))
-
+def _export_comments(bs_data, file_path="comments.txt"):
+    
     k = bs_data.find_all("div", {"class": "kvgmc6g5 cxmmr5t8 oygrvhab hcukyx3x c1et5uql"})
 
-    with open('comments.txt', 'w', encoding='utf-8') as f:
+    with open(file_path, 'w', encoding='utf-8') as f:
         for item in k:
             try:
                 comment = re.search('start;">(.+?)<', str(item)).group(1)
                 f.write(str(comment)+"\n")
             except AttributeError:
                 pass
-    print("Exported ./comments.txt")
+    print("Exported comments to:", file_path)
 
 
 
@@ -105,23 +104,25 @@ def openComment(browser):
     else:
         pass
     
-def extractComments(browser, page, numOfPost, infinite_scroll=False):
-    browser.get(page)
+def extractPage(browser, numOfPost, infinite_scroll=False, export_html=False):
     lenOfPage = _count_needed_scrolls(browser, infinite_scroll, numOfPost)
     _scroll(browser, infinite_scroll, lenOfPage)
     print("Opening comments...")
     openComment(browser)
     source_data = browser.page_source
     bs_data = bs(source_data, 'html.parser')
-
-    _extract_comments(bs_data)
-    browser.close()
+    if(export_html):
+        with open('./bs.html',"w", encoding="utf-8") as file:
+            file.write(str(bs_data.prettify()))
+    return bs_data
 
 
 if __name__ == "__main__":
     email = input("Enter your email: ")
     password = input("Enter your password: ")
     fb_page = "https://www.facebook.com/DailyProthomAlo"
-    browser = _login(email, password)
-    extractComments(browser=browser, page=fb_page, numOfPost=100, infinite_scroll=False)
-    
+    browser = _login(email, password, fb_page)
+    for i in range(200):
+        bs_data = extractPage(browser=browser, numOfPost=50, infinite_scroll=False)
+        _export_comments(bs_data, file_path="data/comments_"+str(i)+".txt")
+    browser.close()
